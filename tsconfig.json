@@ -6,7 +6,6 @@
     "target": "ES2022",
     "module": "Preserve",
     "moduleDetection": "force",
-    "jsx": "react-jsx",
     "allowJs": true,
 
     "moduleResolution": "bundler",

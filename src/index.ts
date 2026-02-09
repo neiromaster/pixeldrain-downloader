@@ -1,3 +1,2 @@
-export * from './components';
-export * from './hooks';
-export * from './utils';
+// TODO: Implement CLI logic here
+console.log('PixelDrain Downloader CLI');
