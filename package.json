@@ -18,7 +18,8 @@
     "start": "bun run src/index.ts",
     "lint": "biome check . && dprint check",
     "format": "biome check --write --unsafe . && dprint fmt",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'No tests specified yet'"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.14",
