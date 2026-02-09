@@ -15,6 +15,7 @@
   },
   "scripts": {
     "build": "tsup",
+    "start": "bun run src/index.ts",
     "lint": "biome check . && dprint check",
     "format": "biome check --write --unsafe . && dprint fmt",
     "typecheck": "tsc --noEmit"
@@ -28,6 +29,7 @@
     "typescript": "^5.9.3"
   },
   "files": [
-    "dist"
+    "dist",
+    "config.json.example"
   ]
 }

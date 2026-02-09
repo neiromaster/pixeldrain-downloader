@@ -1,0 +1,62 @@
+import { DEFAULT_DOWNLOAD_RETRIES, DEFAULT_RETRY_DELAY } from '../constants.js';
+import { log } from '../utils/logger.js';
+import { sleep } from '../utils/progress.js';
+import { performDownloadAttempt } from './pixeldrain.js';
+
+async function retryDownload(
+  fileId: string,
+  apiKey: string | undefined,
+  retries: number,
+  retryDelay: number,
+  handleLowSpeed: boolean,
+): Promise<'success' | 'failed' | 'low_speed'> {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    log(`      Attempt ${attempt + 1}/${retries}...`, 'info');
+
+    const result = await performDownloadAttempt(fileId, apiKey);
+
+    if (result.status === 'success') return 'success';
+    if (result.status === 'low_speed') {
+      if (handleLowSpeed) {
+        log('      Low speed. Switching to API key download.', 'warn');
+        return 'low_speed';
+      }
+    }
+
+    if (attempt < retries - 1) {
+      log(`      Error. Retrying in ${retryDelay}s...`, 'warn');
+      await sleep(retryDelay * 1000);
+    }
+  }
+
+  return 'failed';
+}
+
+export async function downloadWithRetry(
+  fileId: string,
+  apiKey?: string,
+  retries: number = DEFAULT_DOWNLOAD_RETRIES,
+  retryDelay: number = DEFAULT_RETRY_DELAY,
+): Promise<boolean> {
+  // Phase 1: Download without API key
+  log('\n--- Phase 1: Download without API key ---', 'info');
+
+  const phase1Result = await retryDownload(fileId, undefined, retries, retryDelay, true);
+
+  if (phase1Result === 'success') return true;
+
+  // Phase 2: Download with API key
+  if (!apiKey) {
+    log('\n      ❌ Failed without API key, and no key provided', 'error');
+    return false;
+  }
+
+  log('\n--- Phase 2: Download with API key ---', 'info');
+
+  const phase2Result = await retryDownload(fileId, apiKey, retries, retryDelay, false);
+
+  if (phase2Result === 'success') return true;
+
+  log('\n      ❌ Failed after all retries', 'error');
+  return false;
+}

@@ -1,0 +1,7 @@
+{
+  "settings": {
+    "pixeldrain_api_key": null,
+    "download_retries": 3,
+    "download_retry_delay": 5
+  }
+}
