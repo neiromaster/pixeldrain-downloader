@@ -141,6 +141,10 @@ export async function performDownloadAttempt(
       }
     }
 
+    const finalElapsed = (Date.now() - startTime) / 1000;
+    const finalSpeed = finalElapsed > 0 ? downloadedSize / finalElapsed / 1024 : 0;
+    updateProgress(downloadedSize, totalSize, finalSpeed);
+
     const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
     const buffer = new Uint8Array(totalLength);
     let offset = 0;
