@@ -1,6 +1,6 @@
 {
   "name": "pixeldrain-downloader",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "CLI tool for downloading files from PixelDrain with automatic retry logic and speed monitoring",
   "author": "Maxim (neiromaster) Gavrilenko",
   "license": "MIT",
