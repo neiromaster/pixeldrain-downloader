@@ -116,8 +116,8 @@ export async function performDownloadAttempt(
 
               maxSpeedInWindow = Math.max(maxSpeedInWindow, windowSpeed);
 
-              if (windowElapsed >= SPEED_CHECK_WINDOW_SECONDS - 2) {
-                if (maxSpeedInWindow < minSpeedThreshold && windowElapsed >= SPEED_CHECK_WINDOW_SECONDS) {
+              if (windowElapsed >= SPEED_CHECK_WINDOW_SECONDS) {
+                if (maxSpeedInWindow < minSpeedThreshold) {
                   const mbSpeed = maxSpeedInWindow / 1024;
                   const mbThreshold = minSpeedThreshold / 1024;
                   clearLine();

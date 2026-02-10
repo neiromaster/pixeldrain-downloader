@@ -19,7 +19,6 @@ async function retryDownload(
     if (result.status === 'success') return 'success';
     if (result.status === 'low_speed') {
       if (handleLowSpeed) {
-        log('      Low speed. Switching to API key download.', 'warn');
         return 'low_speed';
       }
     }
