@@ -8,15 +8,52 @@ import {
   PIXELDRAIN_API_INFO_URL,
   SPEED_CHECK_WINDOW_SECONDS,
 } from '../constants.js';
-import type { DownloadResult, FileInfo, SpeedSample } from '../types/api.js';
+import type { DownloadAttemptOptions, DownloadResult, FileInfo, SpeedSample } from '../types/api.js';
 import { log } from '../utils/logger.js';
 import { clearLine, updateProgress } from '../utils/progress.js';
 
+async function ensureDirectory(dirPath: string | undefined, fallbackToCwd: boolean = false): Promise<string> {
+  const resolved = dirPath ? path.resolve(dirPath) : fallbackToCwd ? process.cwd() : '.';
+
+  if (!dirPath && !fallbackToCwd) {
+    return resolved;
+  }
+
+  try {
+    await mkdir(resolved, { recursive: true });
+    return resolved;
+  } catch (error: any) {
+    if (dirPath) {
+      log(`⚠️ Cannot create directory ${resolved}: ${error.message}`, 'warn');
+      if (fallbackToCwd) {
+        log('Falling back to current directory', 'info');
+        return process.cwd();
+      }
+    }
+    throw error;
+  }
+}
+
+async function cleanupPartialDownload(filePath: string): Promise<void> {
+  try {
+    await unlink(filePath);
+    log(`      🧹 Cleaned up partial download: ${path.basename(filePath)}`, 'info');
+  } catch (error: any) {
+    if (error.code !== 'ENOENT') {
+      log(`      ⚠️ Failed to cleanup: ${error.message}`, 'warn');
+    }
+  }
+}
+
 async function moveFileAfterDownload(sourcePath: string, filename: string, downloadDir: string): Promise<boolean> {
   try {
-    const resolvedDir = path.resolve(downloadDir);
-    await mkdir(resolvedDir, { recursive: true });
+    const resolvedDir = await ensureDirectory(downloadDir);
     const destPath = path.join(resolvedDir, filename);
+
+    if (path.resolve(sourcePath) === path.resolve(destPath)) {
+      log(`      ✅ File already in target directory: ${destPath}`, 'success');
+      return true;
+    }
 
     try {
       await rename(sourcePath, destPath);
@@ -64,13 +101,9 @@ async function getFileInfo(fileId: string, apiKey?: string): Promise<FileInfo | 
   }
 }
 
-export async function performDownloadAttempt(
-  fileId: string,
-  apiKey?: string,
-  outputPath?: string,
-  minSpeedThreshold: number = DEFAULT_MIN_SPEED_THRESHOLD,
-  downloadDir?: string,
-): Promise<DownloadResult> {
+export async function performDownloadAttempt(options: DownloadAttemptOptions): Promise<DownloadResult> {
+  const { fileId, apiKey, tempDir, minSpeedThreshold = DEFAULT_MIN_SPEED_THRESHOLD, downloadDir } = options;
+
   const url = PIXELDRAIN_API_FILE_URL(fileId);
 
   const headers: Record<string, string> = {
@@ -91,9 +124,12 @@ export async function performDownloadAttempt(
 
   const fileInfo = await getFileInfo(fileId, apiKey);
   const filename = fileInfo?.name || fileId;
-  const filePath = outputPath || filename;
+
+  const tempDirectory = await ensureDirectory(tempDir, true);
+  const filePath = path.join(tempDirectory, filename);
 
   log(`      Filename: ${filename}`, 'info');
+  log(`      Temp path: ${filePath}`, 'info');
 
   try {
     const response = await fetch(url, { headers });
@@ -190,6 +226,8 @@ export async function performDownloadAttempt(
   } catch (error) {
     clearLine();
     log(`\n      ❌ Download error: ${(error as Error).message}`, 'error');
+
+    await cleanupPartialDownload(filePath);
 
     if ((error as Error).message.includes('403')) {
       log('      ❌ Access forbidden - may require API key', 'error');

@@ -63,7 +63,9 @@ Create a `config.json` file in the current directory or `~/.config/pixeldrain-do
     "pixeldrain_api_key": "your-api-key-here",
     "retries": 3,
     "retry_delay": 5,
-    "min_speed": 1536
+    "min_speed": 1536,
+    "temp_dir": ".",
+    "download_dir": "./downloads"
   }
 }
 ```
@@ -73,6 +75,8 @@ Create a `config.json` file in the current directory or `~/.config/pixeldrain-do
 - `retries`: Number of retry attempts (default: 3)
 - `retry_delay`: Delay between retries in seconds (default: 5)
 - `min_speed`: Minimum speed threshold in KB/s to trigger Phase 2 (default: 1536 KB/s = 1.5 MB/s)
+- `temp_dir`: Directory for temporary/partial downloads (default: current directory ".")
+- `download_dir`: Folder path to move downloaded files after successful download (relative or absolute)
 
 See `config.json.example` for a template.
 

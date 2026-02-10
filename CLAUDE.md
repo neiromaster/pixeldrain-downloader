@@ -98,7 +98,8 @@ Optional `config.json` file:
     "download_dir": "./downloads",
     "retries": 3,
     "retry_delay": 5,
-    "min_speed": 1536
+    "min_speed": 1536,
+    "temp_dir": "."
   }
 }
 ```
@@ -108,6 +109,7 @@ Optional `config.json` file:
 - `retries`: Number of retry attempts (default: 3)
 - `retry_delay`: Delay between retries in seconds (default: 5)
 - `min_speed`: Minimum speed threshold in KB/s to trigger Phase 2 (default: 1536 KB/s = 1.5 MB/s)
+- `temp_dir`: Directory for temporary/partial downloads (default: current directory ".")
 - `download_dir`: Folder path to move downloaded files after successful download (relative or absolute)
 
 

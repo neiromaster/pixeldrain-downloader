@@ -4,6 +4,7 @@
     "retries": 3,
     "retry_delay": 5,
     "min_speed": 1536,
+    "temp_dir": ".",
     "download_dir": "./downloads"
   }
 }
