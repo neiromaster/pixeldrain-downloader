@@ -29,6 +29,8 @@ export async function performDownloadAttempt(
   let downloadedSize = 0;
   let totalSize = 0;
   const startTime = Date.now();
+  let lastProgressUpdate = 0;
+  const PROGRESS_UPDATE_INTERVAL = 200; // ms
 
   const speedSamples: SpeedSample[] = [];
   let maxSpeedInWindow = 0;
@@ -93,9 +95,11 @@ export async function performDownloadAttempt(
 
               if (windowElapsed >= SPEED_CHECK_WINDOW_SECONDS - 2) {
                 if (maxSpeedInWindow < minSpeedThreshold && windowElapsed >= SPEED_CHECK_WINDOW_SECONDS) {
+                  const mbSpeed = maxSpeedInWindow / 1024;
+                  const mbThreshold = minSpeedThreshold / 1024;
                   clearLine();
                   log(
-                    `\n      ❌ Low speed detected: max ${maxSpeedInWindow.toFixed(0)} KB/s in 10s window (need ${minSpeedThreshold} KB/s)`,
+                    `\n      ❌ Low speed detected: max ${mbSpeed.toFixed(2)} MB/s in 10s window (need ${mbThreshold.toFixed(2)} MB/s)`,
                     'warn',
                   );
                   log('      Switching to API key download...', 'info');
@@ -106,7 +110,11 @@ export async function performDownloadAttempt(
           }
         }
 
-        updateProgress(downloadedSize, totalSize, speed);
+        const now = Date.now();
+        if (now - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL) {
+          updateProgress(downloadedSize, totalSize, speed);
+          lastProgressUpdate = now;
+        }
       }
     }
 
