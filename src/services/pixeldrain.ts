@@ -4,11 +4,37 @@ import {
   DEFAULT_MIN_SPEED_THRESHOLD,
   DEFAULT_USER_AGENT,
   PIXELDRAIN_API_FILE_URL,
+  PIXELDRAIN_API_INFO_URL,
   SPEED_CHECK_WINDOW_SECONDS,
 } from '../constants.js';
-import type { DownloadResult, SpeedSample } from '../types/api.js';
+import type { DownloadResult, FileInfo, SpeedSample } from '../types/api.js';
 import { log } from '../utils/logger.js';
 import { clearLine, updateProgress } from '../utils/progress.js';
+
+async function getFileInfo(fileId: string, apiKey?: string): Promise<FileInfo | null> {
+  const url = PIXELDRAIN_API_INFO_URL(fileId);
+
+  const headers: Record<string, string> = {
+    'User-Agent': DEFAULT_USER_AGENT,
+  };
+  if (apiKey) {
+    const auth = Buffer.from(`:${apiKey}`).toString('base64');
+    headers.Authorization = `Basic ${auth}`;
+  }
+
+  try {
+    const response = await fetch(url, { headers });
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as { name?: string; size?: number };
+    if (data.name && typeof data.size === 'number') {
+      return { name: data.name, size: data.size };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export async function performDownloadAttempt(
   fileId: string,
@@ -35,18 +61,15 @@ export async function performDownloadAttempt(
   const speedSamples: SpeedSample[] = [];
   let maxSpeedInWindow = 0;
 
-  const filePath = outputPath || fileId;
+  const fileInfo = await getFileInfo(fileId, apiKey);
+  const filename = fileInfo?.name || fileId;
+  const filePath = outputPath || filename;
+
+  log(`      Filename: ${filename}`, 'info');
 
   try {
     const response = await fetch(url, { headers });
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-
-    const contentDisposition = response.headers.get('content-disposition');
-    let filename = fileId;
-    if (contentDisposition) {
-      const match = contentDisposition.match(/filename="([^"]+)"/);
-      if (match?.[1]) filename = match[1];
-    }
 
     totalSize = parseInt(response.headers.get('content-length') || '0', 10);
 

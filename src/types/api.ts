@@ -23,3 +23,8 @@ export type DownloadProgress = {
   speed: number; // KB/s
   progress: number; // 0-100
 };
+
+export type FileInfo = {
+  name: string;
+  size: number;
+};
