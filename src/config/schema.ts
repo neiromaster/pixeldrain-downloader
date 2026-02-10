@@ -12,5 +12,10 @@ export function validateConfig(config: unknown): Config | null {
     return null;
   }
 
+  // Validate download_dir is string if provided
+  if (cfg.settings?.download_dir && typeof cfg.settings.download_dir !== 'string') {
+    return null;
+  }
+
   return cfg as Config;
 }

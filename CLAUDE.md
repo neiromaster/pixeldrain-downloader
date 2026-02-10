@@ -95,6 +95,7 @@ Optional `config.json` file:
 {
   "settings": {
     "pixeldrain_api_key": "your-api-key",
+    "download_dir": "./downloads",
     "retries": 3,
     "retry_delay": 5,
     "min_speed": 1536
@@ -107,6 +108,7 @@ Optional `config.json` file:
 - `retries`: Number of retry attempts (default: 3)
 - `retry_delay`: Delay between retries in seconds (default: 5)
 - `min_speed`: Minimum speed threshold in KB/s to trigger Phase 2 (default: 1536 KB/s = 1.5 MB/s)
+- `download_dir`: Folder path to move downloaded files after successful download (relative or absolute)
 
 
 ## Build System

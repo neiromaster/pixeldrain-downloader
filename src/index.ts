@@ -27,6 +27,7 @@ async function main(): Promise<void> {
   const retries = settings.retries ?? DEFAULT_DOWNLOAD_RETRIES;
   const retryDelay = settings.retry_delay ?? DEFAULT_RETRY_DELAY;
   const minSpeedThreshold = settings.min_speed ?? DEFAULT_MIN_SPEED_THRESHOLD;
+  const downloadDir = settings.download_dir ?? undefined;
 
   // Get URL from user
   const url = await getUserPrompt();
@@ -44,7 +45,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const success = await downloadWithRetry(fileId, apiKey, retries, retryDelay, minSpeedThreshold);
+  const success = await downloadWithRetry(fileId, apiKey, downloadDir, retries, retryDelay, minSpeedThreshold);
   process.exit(success ? 0 : 1);
 }
 

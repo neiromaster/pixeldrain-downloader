@@ -1,4 +1,5 @@
-import { writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, rename, unlink, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 
 import {
   DEFAULT_MIN_SPEED_THRESHOLD,
@@ -10,6 +11,33 @@ import {
 import type { DownloadResult, FileInfo, SpeedSample } from '../types/api.js';
 import { log } from '../utils/logger.js';
 import { clearLine, updateProgress } from '../utils/progress.js';
+
+async function moveFileAfterDownload(sourcePath: string, filename: string, downloadDir: string): Promise<boolean> {
+  try {
+    const resolvedDir = path.resolve(downloadDir);
+    await mkdir(resolvedDir, { recursive: true });
+    const destPath = path.join(resolvedDir, filename);
+
+    try {
+      await rename(sourcePath, destPath);
+      log(`      ✅ File moved to ${destPath}`, 'success');
+      return true;
+    } catch (renameError: any) {
+      // Windows EXDEV fallback - different drives
+      if (renameError.code === 'EXDEV') {
+        await copyFile(sourcePath, destPath);
+        await unlink(sourcePath);
+        log(`      ✅ File copied to ${destPath}`, 'success');
+        return true;
+      }
+      throw renameError;
+    }
+  } catch (error) {
+    log(`      ⚠️ Failed to move file: ${(error as Error).message}`, 'warn');
+    log('      File remains in current directory', 'info');
+    return false;
+  }
+}
 
 async function getFileInfo(fileId: string, apiKey?: string): Promise<FileInfo | null> {
   const url = PIXELDRAIN_API_INFO_URL(fileId);
@@ -41,6 +69,7 @@ export async function performDownloadAttempt(
   apiKey?: string,
   outputPath?: string,
   minSpeedThreshold: number = DEFAULT_MIN_SPEED_THRESHOLD,
+  downloadDir?: string,
 ): Promise<DownloadResult> {
   const url = PIXELDRAIN_API_FILE_URL(fileId);
 
@@ -150,6 +179,10 @@ export async function performDownloadAttempt(
       offset += chunk.length;
     }
     await writeFile(filePath, buffer);
+
+    if (downloadDir) {
+      await moveFileAfterDownload(filePath, filename, downloadDir);
+    }
 
     clearLine();
     log('      ✅ Download complete', 'success');

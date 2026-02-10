@@ -14,6 +14,7 @@ export type Config = {
     retries?: number;
     retry_delay?: number;
     min_speed?: number; // KB/s
+    download_dir?: string;
   };
 };
 

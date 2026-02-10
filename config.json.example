@@ -3,6 +3,7 @@
     "pixeldrain_api_key": null,
     "retries": 3,
     "retry_delay": 5,
-    "min_speed": 1536
+    "min_speed": 1536,
+    "download_dir": "./downloads"
   }
 }
