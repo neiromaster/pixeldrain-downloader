@@ -16,18 +16,7 @@ export type DownloadOptions = {
   retries?: number;
   retryDelay?: number;
   minSpeedThreshold?: number;
-};
-
-export interface RetryOptions extends DownloadOptions {
-  handleLowSpeed: boolean;
-}
-
-export type DownloadAttemptOptions = {
-  fileId: string;
-  apiKey?: string;
-  tempDir?: string;
-  minSpeedThreshold?: number;
-  downloadDir?: string;
+  onFileChange?: (filePath: string | null) => void;
 };
 
 export type Config = {
@@ -35,17 +24,10 @@ export type Config = {
     pixeldrain_api_key?: string | null;
     retries?: number;
     retry_delay?: number;
-    min_speed?: number; // KB/s
+    min_speed?: number;
     download_dir?: string;
     temp_dir?: string;
   };
-};
-
-export type DownloadProgress = {
-  totalSize: number;
-  downloadedSize: number;
-  speed: number; // KB/s
-  progress: number; // 0-100
 };
 
 export type FileInfo = {

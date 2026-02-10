@@ -8,9 +8,17 @@ import {
   PIXELDRAIN_API_INFO_URL,
   SPEED_CHECK_WINDOW_SECONDS,
 } from '../constants.js';
-import type { DownloadAttemptOptions, DownloadResult, FileInfo, SpeedSample } from '../types/api.js';
+import type { DownloadOptions, DownloadResult, FileInfo, SpeedSample } from '../types/api.js';
 import { log } from '../utils/logger.js';
 import { clearLine, updateProgress } from '../utils/progress.js';
+
+function getAuthHeaders(apiKey?: string): Record<string, string> {
+  const headers: Record<string, string> = { 'User-Agent': DEFAULT_USER_AGENT };
+  if (apiKey) {
+    headers.Authorization = `Basic ${Buffer.from(`:${apiKey}`).toString('base64')}`;
+  }
+  return headers;
+}
 
 async function ensureDirectory(dirPath: string | undefined, fallbackToCwd: boolean = false): Promise<string> {
   const resolved = dirPath ? path.resolve(dirPath) : fallbackToCwd ? process.cwd() : '.';
@@ -22,9 +30,9 @@ async function ensureDirectory(dirPath: string | undefined, fallbackToCwd: boole
   try {
     await mkdir(resolved, { recursive: true });
     return resolved;
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (dirPath) {
-      log(`⚠️ Cannot create directory ${resolved}: ${error.message}`, 'warn');
+      log(`⚠️ Cannot create directory ${resolved}: ${(error as Error).message}`, 'warn');
       if (fallbackToCwd) {
         log('Falling back to current directory', 'info');
         return process.cwd();
@@ -38,9 +46,9 @@ async function cleanupPartialDownload(filePath: string): Promise<void> {
   try {
     await unlink(filePath);
     log(`      🧹 Cleaned up partial download: ${path.basename(filePath)}`, 'info');
-  } catch (error: any) {
-    if (error.code !== 'ENOENT') {
-      log(`      ⚠️ Failed to cleanup: ${error.message}`, 'warn');
+  } catch (error: unknown) {
+    if ((error as { code?: string }).code !== 'ENOENT') {
+      log(`      ⚠️ Failed to cleanup: ${(error as Error).message}`, 'warn');
     }
   }
 }
@@ -59,9 +67,9 @@ async function moveFileAfterDownload(sourcePath: string, filename: string, downl
       await rename(sourcePath, destPath);
       log(`      ✅ File moved to ${destPath}`, 'success');
       return true;
-    } catch (renameError: any) {
+    } catch (renameError: unknown) {
       // Windows EXDEV fallback - different drives
-      if (renameError.code === 'EXDEV') {
+      if ((renameError as { code?: string }).code === 'EXDEV') {
         await copyFile(sourcePath, destPath);
         await unlink(sourcePath);
         log(`      ✅ File copied to ${destPath}`, 'success');
@@ -77,18 +85,10 @@ async function moveFileAfterDownload(sourcePath: string, filename: string, downl
 }
 
 async function getFileInfo(fileId: string, apiKey?: string): Promise<FileInfo | null> {
-  const url = PIXELDRAIN_API_INFO_URL(fileId);
-
-  const headers: Record<string, string> = {
-    'User-Agent': DEFAULT_USER_AGENT,
-  };
-  if (apiKey) {
-    const auth = Buffer.from(`:${apiKey}`).toString('base64');
-    headers.Authorization = `Basic ${auth}`;
-  }
-
   try {
-    const response = await fetch(url, { headers });
+    const response = await fetch(PIXELDRAIN_API_INFO_URL(fileId), {
+      headers: getAuthHeaders(apiKey),
+    });
     if (!response.ok) return null;
 
     const data = (await response.json()) as { name?: string; size?: number };
@@ -101,26 +101,15 @@ async function getFileInfo(fileId: string, apiKey?: string): Promise<FileInfo | 
   }
 }
 
-export async function performDownloadAttempt(options: DownloadAttemptOptions): Promise<DownloadResult> {
-  const { fileId, apiKey, tempDir, minSpeedThreshold = DEFAULT_MIN_SPEED_THRESHOLD, downloadDir } = options;
-
-  const url = PIXELDRAIN_API_FILE_URL(fileId);
-
-  const headers: Record<string, string> = {
-    'User-Agent': DEFAULT_USER_AGENT,
-  };
-  if (apiKey) {
-    const auth = Buffer.from(`:${apiKey}`).toString('base64');
-    headers.Authorization = `Basic ${auth}`;
-  }
-
-  let downloadedSize = 0;
-  let totalSize = 0;
-  const startTime = Date.now();
-  let lastProgressUpdate = 0;
-  const PROGRESS_UPDATE_INTERVAL = 200; // ms
-
-  const speedSamples: SpeedSample[] = [];
+export async function performDownloadAttempt(options: DownloadOptions): Promise<DownloadResult> {
+  const {
+    fileId,
+    apiKey,
+    tempDir,
+    minSpeedThreshold = DEFAULT_MIN_SPEED_THRESHOLD,
+    downloadDir,
+    onFileChange,
+  } = options;
 
   const fileInfo = await getFileInfo(fileId, apiKey);
   const filename = fileInfo?.name || fileId;
@@ -131,16 +120,24 @@ export async function performDownloadAttempt(options: DownloadAttemptOptions): P
   log(`      Filename: ${filename}`, 'info');
   log(`      Temp path: ${filePath}`, 'info');
 
+  onFileChange?.(filePath);
+
   try {
-    const response = await fetch(url, { headers });
+    const response = await fetch(PIXELDRAIN_API_FILE_URL(fileId), {
+      headers: getAuthHeaders(apiKey),
+    });
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 
-    totalSize = parseInt(response.headers.get('content-length') || '0', 10);
-
+    const totalSize = parseInt(response.headers.get('content-length') || '0', 10);
     const reader = response.body?.getReader();
     if (!reader) throw new Error('No response body');
 
     const chunks: Uint8Array[] = [];
+    const speedSamples: SpeedSample[] = [];
+    const startTime = Date.now();
+    let downloadedSize = 0;
+    let lastProgressUpdate = 0;
+    const PROGRESS_UPDATE_INTERVAL = 200; // ms
 
     while (true) {
       const { done, value } = await reader.read();
@@ -157,40 +154,33 @@ export async function performDownloadAttempt(options: DownloadAttemptOptions): P
 
         if (!apiKey) {
           const now = Date.now();
-
           speedSamples.push({ timestamp: now, bytes: downloadedSize });
 
           const tenSecondsAgo = now - SPEED_CHECK_WINDOW_SECONDS * 1000;
-          while (speedSamples.length > 0) {
-            const firstSample = speedSamples[0];
-            if (firstSample && firstSample.timestamp < tenSecondsAgo) {
-              speedSamples.shift();
-            } else {
-              break;
-            }
+          while (speedSamples[0] && speedSamples[0].timestamp < tenSecondsAgo) {
+            speedSamples.shift();
           }
 
           if (speedSamples.length >= 2) {
             const windowStart = speedSamples[0];
             const windowEnd = speedSamples.at(-1);
-            if (windowStart && windowEnd) {
-              const windowElapsed = (windowEnd.timestamp - windowStart.timestamp) / 1000;
-              const windowBytes = windowEnd.bytes - windowStart.bytes;
-              const windowSpeed = windowElapsed > 0 ? windowBytes / windowElapsed / 1024 : 0; // KB/s
+            if (!windowStart || !windowEnd) continue;
 
-              if (windowElapsed >= SPEED_CHECK_WINDOW_SECONDS) {
-                if (windowSpeed < minSpeedThreshold) {
-                  const mbSpeed = windowSpeed / 1024;
-                  const mbThreshold = minSpeedThreshold / 1024;
-                  clearLine();
-                  log(
-                    `\n      ❌ Low speed detected: ${mbSpeed.toFixed(2)} MB/s in 10s window (need ${mbThreshold.toFixed(2)} MB/s)`,
-                    'warn',
-                  );
-                  log('      Switching to API key download...', 'info');
-                  return { status: 'low_speed' };
-                }
-              }
+            const windowElapsed = (windowEnd.timestamp - windowStart.timestamp) / 1000;
+            const windowBytes = windowEnd.bytes - windowStart.bytes;
+            const windowSpeed = windowElapsed > 0 ? windowBytes / windowElapsed / 1024 : 0; // KB/s
+
+            if (windowElapsed >= SPEED_CHECK_WINDOW_SECONDS && windowSpeed < minSpeedThreshold) {
+              const mbSpeed = windowSpeed / 1024;
+              const mbThreshold = minSpeedThreshold / 1024;
+              clearLine();
+              log(
+                `\n      ❌ Low speed detected: ${mbSpeed.toFixed(2)} MB/s in 10s window (need ${mbThreshold.toFixed(2)} MB/s)`,
+                'warn',
+              );
+              log('      Switching to API key download...', 'info');
+              onFileChange?.(null);
+              return { status: 'low_speed' };
             }
           }
         }
@@ -222,12 +212,14 @@ export async function performDownloadAttempt(options: DownloadAttemptOptions): P
 
     clearLine();
     log('      ✅ Download complete', 'success');
+    onFileChange?.(null);
     return { status: 'success', filename };
   } catch (error) {
     clearLine();
     log(`\n      ❌ Download error: ${(error as Error).message}`, 'error');
 
     await cleanupPartialDownload(filePath);
+    onFileChange?.(null);
 
     if ((error as Error).message.includes('403')) {
       log('      ❌ Access forbidden - may require API key', 'error');

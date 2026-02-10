@@ -1,10 +1,13 @@
 import { DEFAULT_DOWNLOAD_RETRIES, DEFAULT_MIN_SPEED_THRESHOLD, DEFAULT_RETRY_DELAY } from '../constants.js';
-import type { DownloadOptions, RetryOptions } from '../types/api.js';
+import type { DownloadOptions } from '../types/api.js';
 import { log } from '../utils/logger.js';
 import { sleep } from '../utils/progress.js';
 import { performDownloadAttempt } from './pixeldrain.js';
 
-async function retryDownload(options: RetryOptions): Promise<'success' | 'failed' | 'low_speed'> {
+async function retryWithPhase(
+  options: DownloadOptions,
+  handleLowSpeed: boolean,
+): Promise<'success' | 'failed' | 'low_speed'> {
   const {
     fileId,
     apiKey,
@@ -12,7 +15,6 @@ async function retryDownload(options: RetryOptions): Promise<'success' | 'failed
     downloadDir,
     retries = DEFAULT_DOWNLOAD_RETRIES,
     retryDelay = DEFAULT_RETRY_DELAY,
-    handleLowSpeed,
     minSpeedThreshold = DEFAULT_MIN_SPEED_THRESHOLD,
   } = options;
 
@@ -40,50 +42,22 @@ async function retryDownload(options: RetryOptions): Promise<'success' | 'failed
 }
 
 export async function downloadWithRetry(options: DownloadOptions): Promise<boolean> {
-  const {
-    fileId,
-    apiKey,
-    tempDir,
-    downloadDir,
-    retries = DEFAULT_DOWNLOAD_RETRIES,
-    retryDelay = DEFAULT_RETRY_DELAY,
-    minSpeedThreshold = DEFAULT_MIN_SPEED_THRESHOLD,
-  } = options;
-
   // Phase 1: Download without API key
   log('\n--- Phase 1: Download without API key ---', 'info');
 
-  const phase1Result = await retryDownload({
-    fileId,
-    apiKey: undefined,
-    tempDir,
-    downloadDir,
-    retries,
-    retryDelay,
-    handleLowSpeed: true,
-    minSpeedThreshold,
-  });
+  const phase1Result = await retryWithPhase({ ...options, apiKey: undefined }, true);
 
   if (phase1Result === 'success') return true;
 
   // Phase 2: Download with API key
-  if (!apiKey) {
+  if (!options.apiKey) {
     log('\n      ❌ Failed without API key, and no key provided', 'error');
     return false;
   }
 
   log('\n--- Phase 2: Download with API key ---', 'info');
 
-  const phase2Result = await retryDownload({
-    fileId,
-    apiKey,
-    tempDir,
-    downloadDir,
-    retries,
-    retryDelay,
-    handleLowSpeed: false,
-    minSpeedThreshold,
-  });
+  const phase2Result = await retryWithPhase(options, false);
 
   if (phase2Result === 'success') return true;
 
