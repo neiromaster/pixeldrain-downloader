@@ -7,7 +7,7 @@
   "types": "dist/index.d.ts",
   "type": "module",
   "bin": {
-    "pixeldrain-downloader": "./dist/index.js"
+    "pixeldrain-downloader": "dist/index.js"
   },
   "exports": "./dist/index.js",
   "engines": {
@@ -26,7 +26,8 @@
     "lint": "biome check . && dprint check",
     "format": "biome check --write --unsafe . && dprint fmt",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'No tests specified yet'"
+    "test": "echo 'No tests specified yet'",
+    "prepublishOnly": "bun run build"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.14",
@@ -39,5 +40,9 @@
   "files": [
     "dist",
     "config.json.example"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
 }
