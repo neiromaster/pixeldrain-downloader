@@ -2,6 +2,16 @@
   "name": "pixeldrain-downloader",
   "version": "0.0.1",
   "description": "CLI tool for downloading files from PixelDrain with automatic retry logic and speed monitoring",
+  "author": "Maxim (neiromaster) Gavrilenko",
+  "license": "MIT",
+  "homepage": "https://github.com/neiromaster/pixeldrain-downloader",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/neiromaster/pixeldrain-downloader.git"
+  },
+  "bugs": {
+    "url": "https://github.com/neiromaster/pixeldrain-downloader/issues"
+  },
   "module": "dist/index.js",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
