@@ -11,8 +11,9 @@ export type SpeedSample = {
 export type Config = {
   settings?: {
     pixeldrain_api_key?: string | null;
-    download_retries?: number;
-    download_retry_delay?: number;
+    retries?: number;
+    retry_delay?: number;
+    min_speed?: number; // KB/s
   };
 };
 

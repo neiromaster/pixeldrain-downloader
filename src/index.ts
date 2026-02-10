@@ -1,7 +1,7 @@
 import { createInterface } from 'node:readline';
 
 import { loadConfig } from './config/loader.js';
-import { DEFAULT_DOWNLOAD_RETRIES, DEFAULT_RETRY_DELAY } from './constants.js';
+import { DEFAULT_DOWNLOAD_RETRIES, DEFAULT_MIN_SPEED_THRESHOLD, DEFAULT_RETRY_DELAY } from './constants.js';
 import { downloadWithRetry } from './services/downloader.js';
 import { log } from './utils/logger.js';
 
@@ -24,8 +24,9 @@ async function main(): Promise<void> {
   const settings = config.settings || {};
 
   const apiKey = settings.pixeldrain_api_key ?? undefined;
-  const retries = settings.download_retries ?? DEFAULT_DOWNLOAD_RETRIES;
-  const retryDelay = settings.download_retry_delay ?? DEFAULT_RETRY_DELAY;
+  const retries = settings.retries ?? DEFAULT_DOWNLOAD_RETRIES;
+  const retryDelay = settings.retry_delay ?? DEFAULT_RETRY_DELAY;
+  const minSpeedThreshold = settings.min_speed ?? DEFAULT_MIN_SPEED_THRESHOLD;
 
   // Get URL from user
   const url = await getUserPrompt();
@@ -43,7 +44,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const success = await downloadWithRetry(fileId, apiKey, retries, retryDelay);
+  const success = await downloadWithRetry(fileId, apiKey, retries, retryDelay, minSpeedThreshold);
   process.exit(success ? 0 : 1);
 }
 

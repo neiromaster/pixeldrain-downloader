@@ -1,9 +1,9 @@
 import { writeFile } from 'node:fs/promises';
 
 import {
+  DEFAULT_MIN_SPEED_THRESHOLD,
   DEFAULT_USER_AGENT,
   PIXELDRAIN_API_FILE_URL,
-  PIXELDRAIN_MIN_SPEED_NO_API,
   SPEED_CHECK_WINDOW_SECONDS,
 } from '../constants.js';
 import type { DownloadResult, SpeedSample } from '../types/api.js';
@@ -14,6 +14,7 @@ export async function performDownloadAttempt(
   fileId: string,
   apiKey?: string,
   outputPath?: string,
+  minSpeedThreshold: number = DEFAULT_MIN_SPEED_THRESHOLD,
 ): Promise<DownloadResult> {
   const url = PIXELDRAIN_API_FILE_URL(fileId);
 
@@ -91,10 +92,10 @@ export async function performDownloadAttempt(
               maxSpeedInWindow = Math.max(maxSpeedInWindow, windowSpeed);
 
               if (windowElapsed >= SPEED_CHECK_WINDOW_SECONDS - 2) {
-                if (maxSpeedInWindow < PIXELDRAIN_MIN_SPEED_NO_API && windowElapsed >= SPEED_CHECK_WINDOW_SECONDS) {
+                if (maxSpeedInWindow < minSpeedThreshold && windowElapsed >= SPEED_CHECK_WINDOW_SECONDS) {
                   clearLine();
                   log(
-                    `\n      ❌ Low speed detected: max ${maxSpeedInWindow.toFixed(0)} KB/s in 10s window (need ${PIXELDRAIN_MIN_SPEED_NO_API} KB/s)`,
+                    `\n      ❌ Low speed detected: max ${maxSpeedInWindow.toFixed(0)} KB/s in 10s window (need ${minSpeedThreshold} KB/s)`,
                     'warn',
                   );
                   log('      Switching to API key download...', 'info');

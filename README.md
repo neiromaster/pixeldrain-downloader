@@ -1,43 +1,119 @@
-# @neiropacks/packs-template - Ink Package Template
+# pixeldrain-downloader
 
-This repository serves as a template for creating packages for [Ink](https://github.com/vadimdemedes/ink), a React renderer for command-line apps.
+CLI tool for downloading files from PixelDrain with automatic retry logic and speed monitoring.
 
-## Getting Started
+## Features
 
-To use this template:
+- **Two-phase download**: First tries without API key, then falls back to API key if needed
+- **Speed monitoring**: Detects slow downloads (< 1.5 MB/s) using 10-second sliding window
+- **Progress tracking**: Real-time progress bar with speed display
+- **Retry logic**: Configurable retries with delays
+- **Zero dependencies**: Uses native Node.js APIs only
+- **Cross-platform**: Works with both Bun and Node.js 18+
 
-1.  **Clone the repository:**
-    ```bash
-    git clone git@github.com:neiropacks/packs-template.git your-package-name
-    cd your-package-name
-    ```
-2.  **Install dependencies:**
-    ```bash
-    bun install
-    ```
-3.  **Rename the package:**
-    *   Update the `name` field in `package.json` to your desired package name (e.g., `your-package-name`).
-    *   If you intend to publish under a different npm scope, update `@neiros` in `package.json` and in the GitHub Actions workflow (`.github/workflows/publish.yml`).
-4.  **Start developing:**
-    *   Your main library code should reside in `src/`.
-    *   Hooks go into `src/hooks/`.
-    *   Providers go into `src/components/providers/`.
-    *   Utility functions go into `src/utils/`.
+## Installation
 
-## Available Commands
+```bash
+bun install
+bun run build
+```
 
-After setting up the repository and installing dependencies, you can use the following commands:
+## Configuration
 
-*   **`bun run build`**: Compiles the TypeScript code into JavaScript and generates type declaration files.
-*   **`bun run lint`**: Runs ESLint and Biome checks to identify code quality issues.
-*   **`bun run format`**: Formats the code using Biome and applies ESLint fixes.
-*   **`bun run lint:fix`**: Applies ESLint fixes to the codebase.
-*   **`bun run biome:check`**: Runs Biome checks and applies unsafe fixes.
+Create a `config.json` file in the project root:
 
-## Publishing to npm
+```json
+{
+  "settings": {
+    "pixeldrain_api_key": "your-api-key-here",
+    "retries": 3,
+    "retry_delay": 5,
+    "min_speed": 1536
+  }
+}
+```
 
-This template is configured to publish to npm automatically when a version tag (e.g., `v1.0.0`) is pushed to the `main` branch.
+See `config.json.example` for a template.
 
-**Important:**
-*   Ensure you have set up an `NPM_TOKEN` secret in your GitHub repository settings with a valid npm automation token.
-*   Remember to update the package name in `package.json` before publishing.
+## Usage
+
+### Interactive CLI
+
+```bash
+bun run start
+# Or after building:
+./dist/index.js
+```
+
+Enter a PixelDrain URL when prompted:
+```
+Enter PixelDrain file URL: https://pixeldrain.com/u/FILE_ID
+```
+
+### As a Library
+
+```typescript
+import { downloadWithRetry } from './services/downloader.js';
+
+const success = await downloadWithRetry(
+  'file-id',
+  'api-key', // optional
+  3, // retries
+  5 // retry delay in seconds
+);
+```
+
+## Download Behavior
+
+### Phase 1: Download without API key
+- Downloads file without authentication
+- Monitors speed using 10-second sliding window
+- If max speed in any 10s window < 1.5 MB/s → switches to Phase 2
+- Retries on failure
+
+### Phase 2: Download with API key
+- Uses API key for authentication
+- Higher speed limits
+- Retries on failure
+
+### Exit Codes
+- `0`: Download successful
+- `1`: Download failed
+
+## Development
+
+```bash
+# Build
+bun run build
+
+# Run linter
+bun run lint
+
+# Format code
+bun run format
+
+# Type check
+bun run typecheck
+```
+
+## Project Structure
+
+```
+src/
+├── index.ts                 # CLI entry point
+├── constants.ts             # Constants and thresholds
+├── config/
+│   ├── loader.ts           # JSON config loader
+│   └── schema.ts           # Type definitions
+├── services/
+│   ├── pixeldrain.ts       # PixelDrain API integration
+│   └── downloader.ts       # Download orchestration
+└── utils/
+    ├── progress.ts         # Progress bar
+    ├── http.ts             # HTTP utilities
+    └── logger.ts           # Colored logging
+```
+
+## License
+
+MIT

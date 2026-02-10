@@ -1,4 +1,4 @@
-import { DEFAULT_DOWNLOAD_RETRIES, DEFAULT_RETRY_DELAY } from '../constants.js';
+import { DEFAULT_DOWNLOAD_RETRIES, DEFAULT_MIN_SPEED_THRESHOLD, DEFAULT_RETRY_DELAY } from '../constants.js';
 import { log } from '../utils/logger.js';
 import { sleep } from '../utils/progress.js';
 import { performDownloadAttempt } from './pixeldrain.js';
@@ -9,11 +9,12 @@ async function retryDownload(
   retries: number,
   retryDelay: number,
   handleLowSpeed: boolean,
+  minSpeedThreshold: number,
 ): Promise<'success' | 'failed' | 'low_speed'> {
   for (let attempt = 0; attempt < retries; attempt++) {
     log(`      Attempt ${attempt + 1}/${retries}...`, 'info');
 
-    const result = await performDownloadAttempt(fileId, apiKey);
+    const result = await performDownloadAttempt(fileId, apiKey, undefined, minSpeedThreshold);
 
     if (result.status === 'success') return 'success';
     if (result.status === 'low_speed') {
@@ -37,11 +38,12 @@ export async function downloadWithRetry(
   apiKey?: string,
   retries: number = DEFAULT_DOWNLOAD_RETRIES,
   retryDelay: number = DEFAULT_RETRY_DELAY,
+  minSpeedThreshold: number = DEFAULT_MIN_SPEED_THRESHOLD,
 ): Promise<boolean> {
   // Phase 1: Download without API key
   log('\n--- Phase 1: Download without API key ---', 'info');
 
-  const phase1Result = await retryDownload(fileId, undefined, retries, retryDelay, true);
+  const phase1Result = await retryDownload(fileId, undefined, retries, retryDelay, true, minSpeedThreshold);
 
   if (phase1Result === 'success') return true;
 
@@ -53,7 +55,7 @@ export async function downloadWithRetry(
 
   log('\n--- Phase 2: Download with API key ---', 'info');
 
-  const phase2Result = await retryDownload(fileId, apiKey, retries, retryDelay, false);
+  const phase2Result = await retryDownload(fileId, apiKey, retries, retryDelay, false, minSpeedThreshold);
 
   if (phase2Result === 'success') return true;
 

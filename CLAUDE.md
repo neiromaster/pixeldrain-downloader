@@ -1,106 +1,117 @@
+# CLAUDE.md
 
-Default to using Bun instead of Node.js.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-- Use `bun <file>` instead of `node <file>` or `ts-node <file>`
-- Use `bun test` instead of `jest` or `vitest`
-- Use `bun build <file.html|file.ts|file.css>` instead of `webpack` or `esbuild`
-- Use `bun install` instead of `npm install` or `yarn install` or `pnpm install`
-- Use `bun run <script>` instead of `npm run <script>` or `yarn run <script>` or `pnpm run <script>`
-- Bun automatically loads .env, so don't use dotenv.
+## Project Overview
 
-## APIs
+CLI tool for downloading files from PixelDrain with a two-phase approach:
+1. **Phase 1**: Download without API key (with speed monitoring)
+2. **Phase 2**: Fallback to API key if Phase 1 fails or is too slow
 
-- `Bun.serve()` supports WebSockets, HTTPS, and routes. Don't use `express`.
-- `bun:sqlite` for SQLite. Don't use `better-sqlite3`.
-- `Bun.redis` for Redis. Don't use `ioredis`.
-- `Bun.sql` for Postgres. Don't use `pg` or `postgres.js`.
-- `WebSocket` is built-in. Don't use `ws`.
-- Prefer `Bun.file` over `node:fs`'s readFile/writeFile
-- Bun.$`ls` instead of execa.
+## Development Commands
 
-## Testing
-
-Use `bun test` to run tests.
-
-```ts#index.test.ts
-import { test, expect } from "bun:test";
-
-test("hello world", () => {
-  expect(1).toBe(1);
-});
+```bash
+bun run start           # Run CLI in development
+bun run build           # Build for production (tsup)
+bun run typecheck       # Type check without emitting
+bun run lint            # Run both Biome and dprint
+bun run format          # Format code automatically
+bun run test            # Run tests
 ```
 
-## Frontend
+## Architecture
 
-Use HTML imports with `Bun.serve()`. Don't use `vite`. HTML imports fully support React, CSS, Tailwind.
+### Core Components
 
-Server:
+- **`src/index.ts`**: CLI entry point - handles URL parsing and orchestrates downloads
+- **`src/services/downloader.ts`**: Two-phase download orchestration and retry logic
+- **`src/services/pixeldrain.ts`**: PixelDrain API integration, speed monitoring, file writing
+- **`src/config/`**: JSON configuration loader with validation
+- **`src/utils/`**: Logging, ANSI progress bar, HTTP streaming utilities
 
-```ts#index.ts
-import index from "./index.html"
+### Two-Phase Download Strategy
 
-Bun.serve({
-  routes: {
-    "/": index,
-    "/api/users/:id": {
-      GET: (req) => {
-        return new Response(JSON.stringify({ id: req.params.id }));
-      },
-    },
-  },
-  // optional websocket support
-  websocket: {
-    open: (ws) => {
-      ws.send("Hello, world!");
-    },
-    message: (ws, message) => {
-      ws.send(message);
-    },
-    close: (ws) => {
-      // handle close
-    }
-  },
-  development: {
-    hmr: true,
-    console: true,
+**Phase 1 - Unauthenticated:**
+- Attempts download without API key
+- Monitors download speed using 10-second sliding window
+- If max speed < 1.5 MB/s (1536 KB/s) → triggers Phase 2
+
+**Phase 2 - Authenticated:**
+- Uses API key via Basic Auth
+- Higher speed limits (effectively unlimited)
+- Triggered if Phase 1 fails or is too slow
+
+### Speed Monitoring Algorithm
+
+Located in `src/services/pixeldrain.ts:performDownloadAttempt()`
+
+1. Collect speed samples every chunk during download
+2. Maintain sliding window of samples from last 10 seconds
+3. Calculate speed between oldest and newest sample in window
+4. Track maximum speed observed in any 10-second window
+5. After 10 seconds, if max speed < 1.5 MB/s → switch to Phase 2
+
+## API Constraints
+
+**IMPORTANT**: This project targets both Bun AND Node.js 18+ compatibility. Unlike typical Bun projects:
+
+### APIs to Use
+- `fetch` (native) - for HTTP requests
+- `fs/promises` - for file operations (NOT `Bun.file()`)
+- `node:readline` - for CLI input
+- `process.stdout` - for progress display
+
+### APIs to Avoid
+- **Do NOT use `Bun.file()`, `Bun.write()`** - use `fs/promises` instead
+- **Do NOT use external HTTP libraries** - native `fetch` is sufficient
+- **Do NOT add dependencies** unless absolutely necessary
+
+### Logger Utility
+
+Always use the logger utility from `src/utils/logger.js`:
+
+```typescript
+import { log } from './utils/logger.js';
+
+log('info message', 'info');
+log('success message', 'success');
+log('error message', 'error');
+log('warning message', 'warn');
+```
+
+## Adding Features
+
+When adding new download-related features:
+1. Add constants to `src/constants.ts`
+2. Add types to `src/types/api.ts`
+3. Implement service logic in `src/services/`
+4. Use the logger for all user-facing output
+5. Use native Node.js APIs only
+
+## Configuration
+
+Optional `config.json` file:
+```json
+{
+  "settings": {
+    "pixeldrain_api_key": "your-api-key",
+    "retries": 3,
+    "retry_delay": 5,
+    "min_speed": 1536
   }
-})
-```
-
-HTML files can import .tsx, .jsx or .js files directly and Bun's bundler will transpile & bundle automatically. `<link>` tags can point to stylesheets and Bun's CSS bundler will bundle.
-
-```html#index.html
-<html>
-  <body>
-    <h1>Hello, world!</h1>
-    <script type="module" src="./frontend.tsx"></script>
-  </body>
-</html>
-```
-
-With the following `frontend.tsx`:
-
-```tsx#frontend.tsx
-import React from "react";
-
-// import .css files directly and it works
-import './index.css';
-
-import { createRoot } from "react-dom/client";
-
-const root = createRoot(document.body);
-
-export default function Frontend() {
-  return <h1>Hello, world!</h1>;
 }
-
-root.render(<Frontend />);
 ```
 
-Then, run index.ts
+**Settings:**
+- `pixeldrain_api_key`: Your PixelDrain API key for authenticated downloads
+- `retries`: Number of retry attempts (default: 3)
+- `retry_delay`: Delay between retries in seconds (default: 5)
+- `min_speed`: Minimum speed threshold in KB/s to trigger Phase 2 (default: 1536 KB/s = 1.5 MB/s)
 
-```sh
-bun --hot ./index.ts
-```
 
-For more information, read the Bun API docs in `node_modules/bun-types/docs/**.md`.
+## Build System
+
+- **Tool**: tsup (TypeScript bundler)
+- **Target**: Node.js 22+
+- **Output**: Single ESM bundle with declarations
+- **Shebang**: Auto-added for direct CLI execution
